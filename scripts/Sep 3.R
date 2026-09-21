@@ -1,7 +1,8 @@
 install.packages("tidyverse")
 library(tidyverse)
 getwd()
-population_csv <- read.csv("data/raw/API_SP.POP>TOTL_DS2_en_csv_v2_285942.csv")
+population_csv <- read_csv("data/raw/API_SP/API_SP.POP.TOTL_DS2_en_csv_v2_285942.csv",
+                           skip = 4)
 
 population_csv <- read_csv("data/raw/API_SP.POP>TOTL_DS2_en_csv_v2_285942.csv",
                            skip = 4)
