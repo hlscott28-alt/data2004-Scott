@@ -1,0 +1,209 @@
+---
+title: "Weekly 4: When Do People See UFOs?"
+author: "[Name]"
+format:
+  html:
+    embed-resources: true
+editor: visual
+---
+
+## Overview
+
+The National UFO Reporting Center has collected tens of thousands of reports from people who saw something in the sky they couldn't explain. Each report says when it happened, where, what the object looked like, and how long it lasted.
+
+You're going to answer two questions:
+
+1.  **When do people see UFOs?** Time of day, day of the week, time of year.
+2.  **How long does a sighting last?**
+
+A few things:
+
+1.  Add `#| echo: false` to your code blocks.
+2.  Use a new block when you move to a new task.
+3.  Code goes in the blocks. **Answers go outside them**, as prose. A comment inside a code chunk is not an answer.
+4.  Keep the original columns. Every cleaned or parsed version goes in a **new** column.
+
+Due Monday at 8pm.
+
+## Your data
+
+Import `ufo_sightings.csv` and inspect it.
+
+```{r}
+#| warning: false
+
+library(tidyverse)
+ufo_sightings_raw <- read_csv("data/raw/ufo_sightings (1).csv")
+view(ufo_sightings_raw)
+
+
+```
+
+```{r}
+#| warning: false
+
+```
+
+> What does one row represent?
+>
+> One row represents the type of ufo spotted and the location and time it was seen
+
+> Which columns tell you *when* a sighting happened? Which tell you *how long* it lasted?
+>
+> The date and time columns. And the described_encounter length and encounter_length
+
+> What type is `date_time`? Is it a date yet?
+>
+> date_time is just the relative date and time that it was spotted
+
+# Part 1: When do people see UFOs?
+
+## Read the dates
+
+Look at the first several values of `date_time`.
+
+> What format does it appear to use?
+
+"01/12/1999 22:00" could be January 12th or December 1st. You can't tell from that value alone.
+
+> Find evidence in the data itself that settles which reading is right. What would a value need to look like to rule one reading out? Write the code that finds those values.
+
+```{r}
+ufo_sightings_raw %>% 
+  filter(str_detect(date_time, "^(1[3-9]|2[0-9]|3[0-1])/"))
+
+#This makes no sense to me
+```
+
+## Parse them
+
+Create a new column, `observed_at`, containing the parsed date and time. Keep `date_time`.
+
+```{r}
+#| echo: false
+
+```
+
+These times are local to wherever the sighting happened, e.g., Phoenix, Boston, and Anchorage, and the data doesn't record which time zone. You only need the hour, the day, and the date for this assignment, so parse **without** setting a time zone. R will label the result UTC. That isn't true either. It's just a consistent label.
+
+> Why would setting `tz = "America/New_York"` for every sighting be a false claim?
+
+> Since you're only using hour of day and calendar date, does the label change any of your answers? When would it?
+
+## Check what you got
+
+Report three numbers:
+
+- how many `date_time` values were missing before parsing
+- how many `observed_at` values are missing after
+- how many **non-missing** values became missing during parsing
+
+> Why is that third number a different question from the second?
+
+If any records failed to parse, look at them alongside their other columns, not just the date string.
+
+> Do they look malformed? Do they have anything in common? Would you fix them or leave them out? Why?
+
+> Zero parsing failures would tell you the parse *ran*. Name one way a parse could be wrong without producing any missing values.
+
+Find the earliest and latest sightings.
+
+> Do those dates look plausible? Look at the oldest sighting. Does anything about it surprise you?
+
+## So when do people see UFOs?
+
+Make a plot showing the number of sightings by hour of day.
+
+> When do people see UFOs? Is that what you'd expect? Why might it look like this?
+
+Now look at day of the week and month.
+
+> Which days and months have the most sightings? What might explain that?
+
+Ignore the year and count sightings by calendar day, so month and day together.
+
+> Which single day of the year has the most sightings? By how much?
+
+> What happens on that day?
+
+> So is this a dataset about UFOs? What is it actually measuring?
+
+# Part 2: How long does a sighting last?
+
+## Look at how durations were written
+
+Count the distinct values of `described_encounter_length` and look at the most common ones.
+
+Create a new column, `duration_clean`, that standardizes case and whitespace. Keep the original.
+
+> Find three different ways an exact duration is written in `duration_clean`.
+
+> Find three descriptions that can't be turned into a single number, and say why.
+
+## Recover exact minutes
+
+Write a regular expression that identifies descriptions reporting an exact number of minutes.
+
+"Exact" means a number, a minutes word, and **nothing else**. "about 5 minutes" and "5 minutes or so" aren't exact. Your pattern should exclude them, and it should handle the spelling variants you found above.
+
+Then filter to the matches, extract the number into a column called `minutes`, convert it to a column called `text_seconds`, and save the result as `minute_data`.
+
+> What does `str_extract()` return: a number or a string?
+
+> What are you relying on when you convert minutes to seconds?
+
+## Check it against `encounter_length`
+
+`encounter_length` is supposed to be the same quantity, in seconds. Compare it to your `text_seconds`.
+
+> How many rows of `minute_data` agree? How many disagree? How many can't be compared?
+
+> If one person typed "5 minutes" and someone else separately recorded 300 seconds, would they agree every single time across tens of thousands of reports?
+
+> Did you just validate your rule, or rediscover someone else's? What does that tell you about where `encounter_length` came from?
+
+## Seconds, too
+
+Adapt your pattern to find exact numbers of **seconds**. Extract the number and keep it in seconds. (Do hours too if you want to go further.)
+
+> What did your patterns miss? Find descriptions that clearly contain a duration but that neither pattern caught.
+
+## The ones you can't resolve
+
+Find the descriptions that contain a range with values separated by a hyphen. Count them and look at the most common.
+
+Consider "2-3 minutes." You could call it 120 seconds, 150, or 180.
+
+> What assumption would each choice require? Is any of them defensible from the text alone?
+
+Now compare those range descriptions to `encounter_length`.
+
+> Is there a consistent rule connecting the text to the number? What is it? Where is it documented?
+
+> What proportion of all reports contain a range?
+
+> If you computed a median sighting length from `encounter_length`, in which direction would it be wrong, and why?
+
+## The longest sighting
+
+Find the report with the largest `encounter_length`. Read its `described_encounter_length` and its `description`.
+
+> Do you believe it? What would you do with this record if you were working out how long a typical sighting lasts?
+
+# Bringing it together
+
+A friend hears you've been working with UFO data and asks: *when do people see UFOs, and how long does a sighting usually last?*
+
+Write a short answer, roughly 200 words, that:
+
+- answers both questions
+- says what this data is actually measuring
+- tells them the one or two things they'd need to know before trusting your numbers
+
+# Disclosure appendix
+
+> What did you try first? Include the code you wrote and the actual error message, or a clear description of the problem if there was no error.
+
+> If you used an AI system: the exact prompt, exactly what it returned, what it got wrong or left unclear, and what you changed.
+
+> If you didn't use one, say so.
