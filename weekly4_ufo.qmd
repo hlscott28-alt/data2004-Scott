@@ -69,10 +69,15 @@ Look at the first several values of `date_time`.
 > Find evidence in the data itself that settles which reading is right. What would a value need to look like to rule one reading out? Write the code that finds those values.
 
 ```{r}
-ufo_sightings_raw %>% 
-  filter(str_detect(date_time, "^(1[3-9]|2[0-9]|3[0-1])/"))
+#| echo: false
 
-#This makes no sense to me
+ufo_sightings_raw |> 
+  pull(date_time) |> 
+  substr(1, 2) |>  
+  as.numeric() |> 
+  max(na.rm = TRUE)
+
+
 ```
 
 ## Parse them
@@ -82,27 +87,57 @@ Create a new column, `observed_at`, containing the parsed date and time. Keep `d
 ```{r}
 #| echo: false
 
+ufo_sightings_obv <- ufo_sightings_raw |> 
+  mutate(observed_at = mdy_hm(date_time))
+view(ufo_sightings_obv)
+  
+
 ```
 
 These times are local to wherever the sighting happened, e.g., Phoenix, Boston, and Anchorage, and the data doesn't record which time zone. You only need the hour, the day, and the date for this assignment, so parse **without** setting a time zone. R will label the result UTC. That isn't true either. It's just a consistent label.
 
 > Why would setting `tz = "America/New_York"` for every sighting be a false claim?
+>
+> Because it would create inaccurate times because of the different geographic time zones
 
 > Since you're only using hour of day and calendar date, does the label change any of your answers? When would it?
+>
+> No it would not change any of my answers because the value of time is the same no matter where you go. Timezone is just the value of time there
 
 ## Check what you got
 
 Report three numbers:
 
 - how many `date_time` values were missing before parsing
+
+0
+
 - how many `observed_at` values are missing after
+
+0
+
 - how many **non-missing** values became missing during parsing
+
+```{r}
+
+sum(is.na(ufo_sightings_raw$date_time))
+
+sum(is.na(ufo_sightings_obv$observed_at))
+
+#?
+
+
+
+
+```
 
 > Why is that third number a different question from the second?
 
 If any records failed to parse, look at them alongside their other columns, not just the date string.
 
 > Do they look malformed? Do they have anything in common? Would you fix them or leave them out? Why?
+>
+> I think my parsing is wrong
 
 > Zero parsing failures would tell you the parse *ran*. Name one way a parse could be wrong without producing any missing values.
 
@@ -114,19 +149,71 @@ Find the earliest and latest sightings.
 
 Make a plot showing the number of sightings by hour of day.
 
+```{r}
+
+
+ufo_sightings_obv |> 
+  mutate(
+    observed_at = parse_date_time(date_time, orders = c("mdy HM", "dmy HM", "ymd HM")),
+    hour = hour(observed_at)
+  ) |> 
+  drop_na(hour) |> 
+  count(hour) |> 
+  ggplot(aes(x = hour, y = n)) +
+  geom_col(fill = "blue") +
+  labs(
+    title = "UFO Sightings by Hour of Day",
+    x = "Hour of Day (0-23)",
+    y = "Number of Sightings"
+  )
+```
+
 > When do people see UFOs? Is that what you'd expect? Why might it look like this?
+>
+> people mostly see UFOs at night which would make sense
 
 Now look at day of the week and month.
 
+```{r}
+
+ufo_sight_vis <- ufo_sightings_obv |> 
+  mutate(
+    date_time = str_trim(date_time),
+    observed_at = parse_date_time(date_time, orders = c("mdy HM", "dmy HM", "ymd HM", "mdy HMS", "dmy HMS")),
+    wday = wday(observed_at, label = TRUE, abbr = TRUE),
+    month = month(observed_at, label = TRUE, abbr = TRUE)
+  )
+
+ufo_sight_vis |>  
+  count(wday) |>  
+  ggplot(aes(x = wday, y = n)) +
+  geom_col(fill = "red") +
+  labs(title = "UFO Sightings by Day of Week", x = "Day", y = "Count")
+
+ufo_sight_vis %>% 
+  count(month) %>% 
+  ggplot(aes(x = month, y = n)) +
+  geom_col(fill = "green") +
+  labs(title = "UFO Sightings by Month", x = "Month", y = "Count")
+```
+
 > Which days and months have the most sightings? What might explain that?
+>
+> Saturdays in the summertime has the most sightings
 
 Ignore the year and count sightings by calendar day, so month and day together.
 
 > Which single day of the year has the most sightings? By how much?
+>
+> The 4th of July
 
 > What happens on that day?
+>
+> People
 
 > So is this a dataset about UFOs? What is it actually measuring?
+>
+> It measuring ufo sightings
 
 # Part 2: How long does a sighting last?
 
@@ -134,7 +221,19 @@ Ignore the year and count sightings by calendar day, so month and day together.
 
 Count the distinct values of `described_encounter_length` and look at the most common ones.
 
+```{r}
+
+n_distinct(ufo_sightings_raw$described_encounter_length)
+```
+
 Create a new column, `duration_clean`, that standardizes case and whitespace. Keep the original.
+
+```{r}
+
+ufo_sightings_raw <- ufo_sightings_raw %>%
+  mutate(duration_clean = str_squish(str_to_lower(as.character(encounter_length))))
+#This isnt working
+```
 
 > Find three different ways an exact duration is written in `duration_clean`.
 
@@ -144,11 +243,32 @@ Create a new column, `duration_clean`, that standardizes case and whitespace. Ke
 
 Write a regular expression that identifies descriptions reporting an exact number of minutes.
 
+```{r}
+
+regex_minutes <- "\\b\\d+\\s*(min|mins|minute|minutes)\\b"
+
+ufo_sightings_raw <- ufo_sightings_raw |> 
+  mutate(is_exact_minutes = str_detect(duration_clean, regex_minutes))
+
+```
+
 "Exact" means a number, a minutes word, and **nothing else**. "about 5 minutes" and "5 minutes or so" aren't exact. Your pattern should exclude them, and it should handle the spelling variants you found above.
 
 Then filter to the matches, extract the number into a column called `minutes`, convert it to a column called `text_seconds`, and save the result as `minute_data`.
 
+```{r}
+minute_data <- ufo_sightings_raw %>%
+  mutate(duration_clean = str_squish(str_to_lower(as.character(encounter_length)))) %>%
+  filter(str_detect(duration_clean, "\\b\\d+\\s*(min|mins|minute|minutes)\\b")) %>%
+  mutate(
+    minutes = as.numeric(str_extract(duration_clean, "\\d+")),
+    text_seconds = minutes * 60
+  )
+```
+
 > What does `str_extract()` return: a number or a string?
+>
+> string
 
 > What are you relying on when you convert minutes to seconds?
 
@@ -156,7 +276,25 @@ Then filter to the matches, extract the number into a column called `minutes`, c
 
 `encounter_length` is supposed to be the same quantity, in seconds. Compare it to your `text_seconds`.
 
+```{r}
+
+comparison_summary <- minute_data %>%
+  summarise(
+    total_rows = n(),
+    exact_matches = sum(encounter_length == text_seconds, na.rm = TRUE),
+    mismatches = sum(encounter_length != text_seconds, na.rm = TRUE),
+    max_difference = max(abs(encounter_length - text_seconds), na.rm = TRUE)
+  )
+
+minute_data %>%
+  filter(encounter_length != text_seconds) %>%
+  select(duration_clean, encounter_length, minutes, text_seconds) %>%
+  head(10)
+```
+
 > How many rows of `minute_data` agree? How many disagree? How many can't be compared?
+>
+> 0 rows. None there are no rows.
 
 > If one person typed "5 minutes" and someone else separately recorded 300 seconds, would they agree every single time across tens of thousands of reports?
 
