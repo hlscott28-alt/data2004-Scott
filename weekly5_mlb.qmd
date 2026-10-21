@@ -1,0 +1,273 @@
+---
+title: "Weekly 5: How Did the Reds Do?"
+author: "[Name]"
+format:
+  html:
+    embed-resources: true
+editor: visual
+---
+
+# **How did the Cincinnati Reds do in the 2026 regular season?**
+
+How many games did they play, how many did they win, and when did they play them? You'll make a request, turn what comes back into a table, and then check whether the table says what you think it says.
+
+A few things:
+
+1.  Add `#| echo: false` to your code blocks.
+2.  Use a new block when you move to a new task.
+3.  Code goes in the blocks. **Answers go outside them**, as prose. A comment inside a code chunk is not an answer.
+4.  Save the raw response to a file **once**, then work from the file. You'll see why in Part 1.
+
+Due Monday at 8pm.
+
+# Part 1: Ask
+
+## The request
+
+These parameters will get you the Reds' 2026 regular season:
+
+| parameter  | value  | meaning               |
+|------------|--------|-----------------------|
+| `sportId`  | `1`    | Major League Baseball |
+| `teamId`   | `113`  | Cincinnati Reds       |
+| `season`   | `2026` |                       |
+| `gameType` | `R`    | regular season        |
+
+Build the request, send it, and check the status.
+
+```{r}
+#| warning: false
+library(tidyverse)
+library(httr2)
+library(jsonlite)
+
+reds_req <- request("https://statsapi.mlb.com/api/v1/schedule") |>
+  req_url_query(
+    sportId = 1,
+    teamId = 113,
+    season = 2026,
+    gameType = "R"
+  )
+
+reds_req
+reds_req |> 
+  req_dry_run()
+
+reds_response <- reds_req |> 
+  req_perform()
+rep <- req_perform(reds_req)
+resp_status(rep)
+
+
+
+
+
+
+```
+
+## Read the fine print
+
+The first field in every response is `copyright`.
+
+```{r}
+#| warning: false
+
+rep |> 
+  resp_body_json() |> 
+  pluck("copyright")
+
+```
+
+> What does it say? Follow the link it gives you. What kinds of use does MLB permit?
+>
+> It permits an individual use of the data and for it not to be worked with in bulk
+
+> Is this assignment a permitted use? Would it still be if all 25 of us wrote a loop that requested every game of every season? Explain.
+>
+> No because if 25 people wrote a loop it would violate the terms.
+
+## Save it, then work from the file
+
+Save the raw response to `data/raw/reds_2026.json`. Then read it back in with `jsonlite::read_json()` and use **that** for the rest of the assignment. Put the saving and the reading in **separate** blocks. Once the file is saved, add `#| eval: false` to every block that sends a request **and** to the block that saves, so rendering reads your file instead of asking MLB again.
+
+```{r}
+#| warning: false
+
+req_perform(req, path = "data/raw/reds_2026.json")
+sched <- jsonlite::read_json("data/raw/reds_2026.json")
+
+
+```
+
+> Why work from the file instead of sending the request every time you render? Give two reasons.
+
+> Fill this in:
+>
+> - URL: <https://statsapi.mlb.com/api/v1/schedule?sportId=1&teamId=113&season=2026&gameType=R>
+> - Date and time requested: Oct 18th 9:34pm
+> - Status: 200 OK
+
+> If you ran this same request in March 2027, would you get exactly the same file? What might change?
+>
+> You would get the same file because baseball doesnt run through the wintertime. And the reds didnt make the postseason. Sad :(
+
+# Part 2: Make it a table
+
+## Look before you reshape
+
+Use `str()` the way we did in class: look at one date, then one game inside it.
+
+```{r}
+#| warning: false
+sched$dates[[1]] |> 
+  str(max.level = 2)
+
+
+```
+
+> Which parts are `[ ]` (lists of things, which become rows) and which are `{ }` (named things, which become columns)? Write the path from the top of the response down to the Reds' score in one game.
+
+## Rectangle it
+
+Create a tibble called `reds` with **one row per entry in `games`** and these columns:
+
+- `game_pk` (`gamePk`)
+- `game_date` (`gameDate`)
+- `official_date` (`officialDate`)
+- `status` (`status` to `detailedState`)
+- `home_id`, `away_id` (the team ids)
+- `home_score`, `away_score`
+
+Start from `tibble(day = sched$dates)`. In class, `features` was one list of earthquakes. Here, games are a list **inside** a list of dates. How many times will you need `unnest_longer()`? Once you're at one row per game, `hoist()` works the way it did in class.
+
+```{r}
+#| warning: false
+
+reds <- tibble(day = sched$dates) |>
+  hoist(day, games = "games") |>
+  unnest_longer(games) |>
+  hoist(
+    games,
+    game_pk = "gamePk",
+    game_date = "gameDate",
+    official_date = "officialDate",
+    status = list("status", "detailedState"),
+    home_id = list("teams", "home", "team", "id"),
+    away_id = list("teams", "away", "team", "id"),
+    home_score = list("teams", "home", "score"),
+    away_score = list("teams", "away", "score")
+  ) |>
+  select(-day, -games)
+
+nrow(reds)
+sched$totalGames
+
+
+
+```
+
+> How many rows does `reds` have? What does `totalGames` say?
+>
+> Reds has 165 rows and totalgames says 165
+
+> A Major League regular season is 162 games. What's going on?
+>
+> Some games probably got rained out or moved.
+
+# Part 3: What is one row?
+
+## Check the key
+
+`gamePk` is MLB's id for a game.
+
+```{r}
+#| warning: false
+
+reds |> 
+  summarise(n_distinct_games = n_distinct(game_pk))
+
+dup_games <- reds |> 
+  count(game_pk) |> 
+  filter(n > 1)
+dup_games
+
+reds |> 
+  semi_join(dup_games, join_by(game_pk))
+
+```
+
+> How many distinct `game_pk` values are there? Which ones appear more than once?
+>
+> there are 165 distinct values in games_pk. Games 824490, 824514, and 824518 repeat
+
+> Look at every row for those games, alongside their other columns. What happened to them?
+>
+> They were postponed
+
+> Hint: you might want to use a filtering join :)
+
+## Fix the grain
+
+You want one row per game that was actually played. Use `distinct(game_pk, .keep_all = TRUE)` below.
+
+```{r}
+#| warning: false
+
+reds_distinct_wrong <- reds |> 
+  distinct(game_pk, .keep_all = TRUE)
+reds_distinct_wrong
+reds_distinct_wrong |> 
+  semi_join(dup_games, join_by(game_pk))
+
+```
+
+> For the games that appeared twice, which row did `distinct()` keep? Look at the scores. Is that the row you wanted?
+>
+> It shows everything but the scores. The scores have NA values
+
+> Fix it. Show that your result has one row per `game_pk` and that every row has a score.
+
+```{r}
+#| warning: false
+
+reds_clean <- reds |> 
+  filter(status == "Final") |> 
+  distinct(game_pk, .keep_all = TRUE)
+reds_clean
+
+reds_clean |> 
+  summarize(
+    total_rows = n(),
+    distinct_games = n_distinct(game_pk),
+    missing_home_scores = sum(is.na(home_score)),
+    missing_away_scores = sum(is.na(away_score))
+  )
+
+```
+
+# Part 4: When did they play?
+
+```{r}
+#| warning: false
+
+```
+
+> Parse `game_date`. What time zone is it in? How do you know?
+
+> For how many games does the **date** part of `game_date` differ from `official_date`? Look at a few. What do they have in common?
+
+> Count the Reds' games by day of the week twice: once using `game_date` and once using `official_date`. Do you get the same counts? Which one answers "what day did they play?"
+
+> **Optional:** Convert `game_date` to `America/New_York`. Does that make it agree with `official_date`? Would Eastern time be the right choice for a Reds game played in San Diego?
+
+# Disclosure appendix
+
+> What did you try first? Include the code you wrote and the actual error message, or a clear description of the problem if there was no error.
+
+> If you used an AI system: the exact prompt, exactly what it returned, what it got wrong or left unclear, and what you changed.
+
+> If you didn't use one, say so.
+
+# Submit
+
+Submit both the qmd and the final json file.
