@@ -250,13 +250,33 @@ reds_clean |>
 ```{r}
 #| warning: false
 
+reds_clean <- reds_clean |>
+  mutate(
+    game_datetime = ymd_hms(game_date),
+    official_date = ymd(official_date)
+  )
+reds_clean |>
+  select(game_date, game_datetime, official_date) |>
+  slice_head(n = 5)
+
+reds_clean |>
+  filter(as_date(game_datetime) != official_date) |>
+  count()
+reds_clean |>
+  filter(as_date(game_datetime) != official_date) |>
+  select(game_pk, game_date, game_datetime, official_date) |>
+  slice_head(n = 10)
 ```
 
 > Parse `game_date`. What time zone is it in? How do you know?
 
 > For how many games does the **date** part of `game_date` differ from `official_date`? Look at a few. What do they have in common?
+>
+> they are all in the month of march. And they are all consectutive games of each other.
 
 > Count the Reds' games by day of the week twice: once using `game_date` and once using `official_date`. Do you get the same counts? Which one answers "what day did they play?"
+
+> I didnt get the same count some dates differ than others. Gamedate aligns with all other columns times however.
 
 > **Optional:** Convert `game_date` to `America/New_York`. Does that make it agree with `official_date`? Would Eastern time be the right choice for a Reds game played in San Diego?
 
@@ -265,6 +285,12 @@ reds_clean |>
 > What did you try first? Include the code you wrote and the actual error message, or a clear description of the problem if there was no error.
 
 > If you used an AI system: the exact prompt, exactly what it returned, what it got wrong or left unclear, and what you changed.
+>
+> I did use AI. I had trouble with,
+>
+> reds \<- tibble(day = sched\$dates) \|\> hoist(day, games = "games") \|\> unnest_longer(games) \|\> hoist( games, game_pk = "gamePk", game_date = "gameDate", official_date = "officialDate", status = list("status", "detailedState"), home_id = list("teams", "home", "team", "id"), away_id = list("teams", "away", "team", "id"), home_score = list("teams", "home", "score"), away_score = list("teams", "away", "score") ) \|\> select(-day, -games)
+>
+> reds_clean \<- reds \|\> filter(status == "Final") \|\> distinct(game_pk, .keep_all = TRUE)
 
 > If you didn't use one, say so.
 
