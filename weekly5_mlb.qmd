@@ -93,7 +93,7 @@ Save the raw response to `data/raw/reds_2026.json`. Then read it back in with `j
 ```{r}
 #| warning: false
 
-req_perform(req, path = "data/raw/reds_2026.json")
+req_perform(rep, path = "data/raw/reds_2026.json")
 sched <- jsonlite::read_json("data/raw/reds_2026.json")
 
 
