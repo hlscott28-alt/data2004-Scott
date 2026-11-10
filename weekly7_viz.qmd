@@ -1,0 +1,279 @@
+---
+title: "Weekly 7: Who Visits the National Parks?"
+author: "[Name]"
+format:
+  html:
+    embed-resources: true
+editor: visual
+---
+
+## Overview
+
+In class, we started from a default chart and asked one question about every change: **what does this choice make the reader see?**
+
+This week you'll make those decisions yourself, on new data: visits to the U.S. National Parks, from the National Park Service, as collected for TidyTuesday. Kentucky has one of the parks in the data: Mammoth Cave.
+
+The question: **Where does Mammoth Cave sit among the National Parks?**
+
+This weekly is about **visualization judgment**. You'll do a little cleaning to get there, but the point is the charts and your reasons for them.
+
+A few things:
+
+1.  Add `#| echo: false` to your code blocks.
+2.  Use a new block when you move to a new task.
+3.  Code goes in the blocks. **Answers go outside them**, as prose. A comment inside a code chunk is not an answer.
+4.  Save the raw data to a file **once**, then work from the file. After it's saved, add `#| eval: false` to the block that downloads it.
+5.  Every chart you hand in should use a colorblind-safe palette, if it uses color at all.
+
+Due Monday, November 9 at 8pm.
+
+# Part 1: Get the data, and know what you're plotting
+
+The data is here:
+
+`https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-09-17/national_parks.csv`
+
+Read it in and save a copy to `data/raw/national_parks.csv`. Then read your saved copy and call it `parks_raw`.
+
+WAS HAVING PROBLEMS WITH IT NOT FINDING MY DATA/RAW FOLDER HAD TO USE AI TO FIGURE IT OUT. THAT IS WHERE THE DIR.CREATE CAME FROM
+
+```{r}
+#| warning: false
+#| eval: false
+
+library(tidyverse)
+
+ dir.create("data/raw", recursive = TRUE)
+ parks_raw <- read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-09-17/national_parks.csv")
+ write_csv(parks_raw,"data/raw/national_parks.csv")
+
+```
+
+```{r}
+#| warning: false
+
+parks_raw <- read_csv("data/raw/national_parks.csv")
+
+```
+
+> What type is `year`? Why isn't it numeric?
+
+As you scroll to the bottom the numeric year such as 1973 changes to Total for some reason. Total cannot be a value.
+
+```{r}
+#| warning: false
+
+view(parks_raw)
+
+```
+
+> Why would leaving the `Total` rows in create a problem for an analysis of annual visitation?
+>
+> If you were trying to get a sum of just the years, if you throw in a bunch of rows of cumulative annual visitation, it would screw up the results.
+
+> How many kinds of `unit_type` are there?
+>
+> There are 30 different types of unit_type. I know this because there are 30 rows
+>
+> For this assignment, keep only `National Park` records and annual observations. Call the result `np`, and make `year` a number.
+
+```{r}
+#| warning: false
+
+parks_raw |> 
+  count(unit_type)
+
+np <- parks_raw |> 
+  filter(unit_type == "National Park", year != "Total") |> 
+  mutate(year = as.numeric(year))
+```
+
+> Before we visualize anything, check whether one row is one park in one year.
+
+```{r}
+#| warning: false
+
+np |> 
+  count(unit_code, year) |> 
+  filter(n == 2)
+
+
+
+```
+
+You should find one park that appears twice in the same year. Here's the cleaning decision for it; run this:
+
+```{r}
+#| warning: false
+
+np <- np |>
+  distinct(unit_code, year, .keep_all = TRUE)
+```
+
+> After that cleaning, what does one row represent?
+>
+> One row represents the total number of visitors for one year at a specific national park
+>
+> How many parks are represented?
+>
+> There are 60 parks represented.
+>
+> What years does the file cover?
+>
+> The file covers years from 1904 - 2016
+
+```{r}
+#| warning: false
+
+view(np)
+np |> 
+  summarise(
+    n_distinct(unit_code),
+    min(year),
+    max(year)
+  )
+  
+
+```
+
+> Why does the ending year matter for the claims you make later?
+>
+> It does not contain data up to the current year 2026.
+
+# Part 2: Start with the obvious chart
+
+Your audience wants to know how the National Parks compared in 2016.
+
+```{r}
+#| warning: false
+
+parks_2016 <- np |>
+  filter(year == 2016)
+```
+
+> Make the most obvious bar chart: park on the x-axis and 2016 visitors on the y-axis. Don't improve it yet.
+
+```{r}
+#| warning: false
+view(parks_2016)
+ ggplot(parks_2016, aes(x = parkname, y = visitors)) +
+   geom_col()
+
+```
+
+> Is the chart technically correct? What makes it difficult to use?
+>
+> The chart is technically right, but it is impossible to use because the park names are so condensed that you cant even read them. and visitors values is in scientific notation.
+
+# Part 3: Make the comparison readable
+
+> Revise the chart so the park names are readable and the ordering helps the reader compare visitation.
+
+```{r}
+#| warning: false
+
+ggplot(parks_2016, aes(x = visitors, y = fct_reorder(parkname, visitors))) +
+  geom_col() +
+  scale_x_continuous(labels = scales::comma)
+ 
+
+```
+
+> Why put park names on the y-axis instead of the x-axis?
+>
+> Putting the park names on the Y axis makes it easier to view the names because there are less names than visitors so they are easier to see when they are not overlapping.
+
+> Why reorder the parks by visitors?
+>
+> It is easier to compare the bar chart when the values are side by side, it is easily visible to see which park has more or less than another. It also makes it easier to see when they are compared by value and not by names.
+
+> Should every park get its own color?
+>
+> No because it would look like a mess and it doesn't really add anything to add color to each value.
+
+# Part 4: A real visualization problem
+
+Mammoth Cave is the local park we care about. First, find where it ranks in 2016.
+
+Mammoth ranks 33rd in visitation
+
+```{r}
+#| warning: false
+
+parks_2016 |> 
+  arrange(desc(visitors))
+
+```
+
+Now the design problem:
+
+> A chart of only the top 10 parks makes Mammoth Cave disappear. A chart with 60 equally emphasized parks makes the reader work too hard. Create one visualization that helps a reader understand where Mammoth Cave sits relative to the other National Parks.
+
+There is no one right chart here. Make the one you can defend.
+
+```{r}
+#| warning: false
+
+top_parks_2016 <- parks_2016 |> 
+  slice_max(visitors, n = 35)
+
+ggplot(top_parks_2016, aes(x = visitors, y = fct_reorder(parkname, visitors), fill = (parkname == "Mammoth Cave"))) +
+  geom_col() +
+  scale_x_continuous(labels = scales::comma) +
+  scale_fill_manual(values = c("TRUE" = "red", "FALSE" = "grey"))
+  
+
+
+
+
+```
+
+# Part 5: Defend the choices
+
+> What should the reader notice first when they look at your final chart?
+>
+> The reader should first notice that the mammoth cave bar is a significantly different color than the other national parks. The mammoth cave bar is red while the others are grey.
+
+> Name two visualization choices you made deliberately. For each one, explain what that choice helps the reader see.
+>
+> I actually like the bar chart I think it works it just needed some adjustments. I reduced the amount of national parks that had considerably less visitation than mammoth cave which makes the y axis easier to read because there is less cramming. I also made the value of mammoth cave red while the rest of the chart values are grey. It makes it instantly noticeable and easy to read.
+
+> Name one visualization choice you considered but rejected. Why did you reject it?
+>
+> I first attempted a scatterplot and I thought it looked pretty stupid. Although i think I did something wrong because it came out looking like a bar chart with dots.
+
+> What does your chart support saying? What does it **not** support saying?
+>
+> My chart can firmly say mammoth cave sits in the top 35 of national parks, it does not support how it ranks in other years because it is just 2016
+
+# Bringing it together
+
+> In 3–4 sentences, answer the question for your reader: where does Mammoth Cave sit among the National Parks? Include one number, one interpretation, and one limitation.
+>
+> Mammoth cave sits at the 33rd most visited National park. It is a middle of the pack park in terms of visitation. It is nowhere near close to the most visited held by the grand canyon, but it sees significantly more visitation than the gates of the arctic. However this data is just for 2016.
+
+# Disclosure appendix
+
+> What did you try first? Include the code you wrote and the actual error message, or a clear description of the problem if there was no error.
+
+> If you used an AI system: the exact prompt, exactly what it returned, what it got wrong or left unclear, and what you changed.
+
+I did use AI
+
+Prompt - why is this not working with a screenshot of the data/raw folder not found error
+
+dir.create("data/raw", recursive = TRUE) parks_raw \<- read_csv("[https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-09-17/national_parks.csv")](https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2019/2019-09-17/national_parks.csv")) write_csv(parks_raw,"data/raw/national_parks.csv")
+
+Told me to use the dir.create so it would view my data/raw folder
+
+I originally just tried to do it the normal way just using read_csv to get it into the raw folder.
+
+Prompt - What function do you use to change the notation of the x axis in ggplot. I couldnt figure out how. I originally tried scale log 10 and it not work as I wanted
+
+ggplot(parks_2016, aes(x = visitors, y = fct_reorder(parkname, visitors))) + geom_col() + scale_x_continuous(labels = scales::comma)
+
+> If you didn't use one, say so.
+
+# Before you submit
+
+Render in a clean session: restart R, then render. Commit and push the `.qmd`, the `.html`, **and** your saved `.csv`.
